@@ -554,17 +554,22 @@ document.getElementById('saveGif').onclick=async()=>{
   overlay.classList.add('on'); bar.style.width='0%';
   let wu; try{ wu=await getWorker(); }catch(_){ overlay.classList.remove('on'); alert('GIF 워커 로드 실패'); return; }
 
-  const GS=0.85, W=Math.round(LW*GS), H=Math.round(LH*GS);
+  const GS=1, W=Math.round(LW*GS), H=Math.round(LH*GS), SS=2;   // full-res output, 2x supersample
   const FRAMES=32, DELAY=90;                  // ~2.9s loop
   const start=S.progress, amp=0.08;           // starts at slider position, moves forward a little
 
-  const gif=new GIF({workers:2,quality:8,width:W,height:H,workerScript:wu,dither:false});
-  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const gif=new GIF({workers:3,quality:2,width:W,height:H,workerScript:wu,dither:false});
+  const hi=document.createElement('canvas'); hi.width=W*SS; hi.height=H*SS; const hctx=hi.getContext('2d');
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const cctx=c.getContext('2d');
+  cctx.imageSmoothingEnabled=true; cctx.imageSmoothingQuality='high';
   for(let i=0;i<FRAMES;i++){
     const t=i/FRAMES;
     const progress=Math.min(0.999,start+amp*t);  // forward only
-    renderTo(c,progress,t);
-    gif.addFrame(c.getContext('2d'),{copy:true,delay:DELAY});
+    hctx.setTransform((W*SS)/LW,0,0,(H*SS)/LH,0,0);
+    draw(hctx,progress,t,false,t);              // render frame at 2x
+    cctx.setTransform(1,0,0,1,0,0); cctx.clearRect(0,0,W,H);
+    cctx.drawImage(hi,0,0,W,H);                 // high-quality downscale
+    gif.addFrame(cctx,{copy:true,delay:DELAY});
     bar.style.width=Math.round((i+1)/FRAMES*50)+'%';
     await new Promise(r=>setTimeout(r,0));
   }
